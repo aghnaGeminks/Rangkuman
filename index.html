@@ -440,16 +440,16 @@
                 throw new Error("Teks hasil ekstraksi file terlalu singkat atau kosong. Pastikan PDF berupa teks asli (bukan gambar/scanned PDF).");
             }
 
-            await callGeminiAI(extractedText, apiKey);
+            await callGeminiAIWithFallback(extractedText, apiKey);
 
         } catch (error) {
             outputDiv.innerHTML = `<p style="color: #ef4444;">⚠️ ${error.message}</p>`;
         }
     }
 
-    async function callGeminiAI(sourceText, apiKey) {
+    // Fungsi pemanggilan API dengan mekanisme Retry dan Fallback Model
+    async function callGeminiAIWithFallback(sourceText, apiKey) {
         const outputDiv = document.getElementById('output-content');
-        
         const cleanText = sourceText.substring(0, 15000);
 
         const promptText = `Kamu adalah asisten pengajar profesional. Rangkumlah materi pembelajaran berikut dengan terstruktur, jelas, dan mudah dihafal untuk ujian.
@@ -467,36 +467,58 @@ Gunakan format berikut:
 Materi yang harus dirangkum:
 ${cleanText}`;
 
-        // Menggunakan endpoint model gemini-3.8-flash terbaru
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+        // Daftar model yang akan dicoba secara berurutan
+        const modelsToTry = [
+            'gemini-2.5-flash',
+            'gemini-1.5-flash',
+            'gemini-1.5-pro'
+        ];
 
-        try {
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{ text: promptText }]
-                    }]
-                })
-            });
+        let lastError = '';
 
-            const data = await response.json();
+        for (const modelName of modelsToTry) {
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+            
+            // Mencoba hingga 2 kali per model jika terkena error 503
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    outputDiv.innerHTML = `<p class="loading">⏳ Memproses dengan ${modelName} (Percobaan ${attempt})...</p>`;
 
-            if (!response.ok) {
-                const errDetail = data.error ? data.error.message : 'HTTP Error ' + response.status;
-                throw new Error(`API Error (${response.status}): ${errDetail}`);
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: promptText }] }]
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.status === 503 || response.status === 429) {
+                        lastError = data.error ? data.error.message : 'Server sibuk (503/429)';
+                        // Tunggu 2 detik sebelum mencoba lagi
+                        await new Promise(res => setTimeout(res, 2000));
+                        continue;
+                    }
+
+                    if (!response.ok) {
+                        lastError = data.error ? data.error.message : `HTTP Error ${response.status}`;
+                        break; // Pindah ke model berikutnya jika error bukan 503
+                    }
+
+                    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
+                        outputDiv.innerText = data.candidates[0].content.parts[0].text;
+                        return; // Berhasil, keluar dari fungsi
+                    }
+                } catch (err) {
+                    lastError = err.message;
+                    await new Promise(res => setTimeout(res, 1500));
+                }
             }
-
-            if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
-                const aiResponse = data.candidates[0].content.parts[0].text;
-                outputDiv.innerText = aiResponse;
-            } else {
-                throw new Error("Respon dari Gemini tidak memiliki teks. Cobalah periksa dokumen Anda.");
-            }
-        } catch (err) {
-            outputDiv.innerHTML = `<p style="color: #ef4444;">⚠️ Gagal memproses AI: ${err.message}</p>`;
         }
+
+        // Jika semua model gagal
+        throw new Error(`Server Google AI sedang mengalami beban lalu lintas tinggi (503). Silakan coba lagi dalam beberapa saat.\nDetail: ${lastError}`);
     }
 </script>
 
