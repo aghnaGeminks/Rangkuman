@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RangkumIn AI - Perangkum Pembelajaran Cerdas</title>
+    <title>RangkumTOT  - Perangkum Pembelajaran Cerdas Kalo Belajar</title>
     
     <!-- Library pendukung ekstraksi file -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
@@ -447,7 +447,6 @@
         }
     }
 
-    // Fungsi pemanggilan API dengan mekanisme Retry dan Fallback Model
     async function callGeminiAIWithFallback(sourceText, apiKey) {
         const outputDiv = document.getElementById('output-content');
         const cleanText = sourceText.substring(0, 15000);
@@ -467,11 +466,11 @@ Gunakan format berikut:
 Materi yang harus dirangkum:
 ${cleanText}`;
 
-        // Daftar model yang akan dicoba secara berurutan
+        // Model resmi yang terbukti aktif di Google Gemini API v1beta
         const modelsToTry = [
-            'gemini-2.5-flash',
             'gemini-1.5-flash',
-            'gemini-1.5-pro'
+            'gemini-1.5-flash-8b',
+            'gemini-2.0-flash'
         ];
 
         let lastError = '';
@@ -479,10 +478,9 @@ ${cleanText}`;
         for (const modelName of modelsToTry) {
             const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
             
-            // Mencoba hingga 2 kali per model jika terkena error 503
             for (let attempt = 1; attempt <= 2; attempt++) {
                 try {
-                    outputDiv.innerHTML = `<p class="loading">⏳ Memproses dengan ${modelName} (Percobaan ${attempt})...</p>`;
+                    outputDiv.innerHTML = `<p class="loading">⏳ Memproses dengan ${modelName}...</p>`;
 
                     const response = await fetch(endpoint, {
                         method: 'POST',
@@ -495,30 +493,28 @@ ${cleanText}`;
                     const data = await response.json();
 
                     if (response.status === 503 || response.status === 429) {
-                        lastError = data.error ? data.error.message : 'Server sibuk (503/429)';
-                        // Tunggu 2 detik sebelum mencoba lagi
-                        await new Promise(res => setTimeout(res, 2000));
+                        lastError = data.error ? data.error.message : 'Server sibuk';
+                        await new Promise(res => setTimeout(res, 1500));
                         continue;
                     }
 
                     if (!response.ok) {
                         lastError = data.error ? data.error.message : `HTTP Error ${response.status}`;
-                        break; // Pindah ke model berikutnya jika error bukan 503
+                        break; // Pindah ke model selanjutnya jika model ini tidak ditemukan / tidak valid
                     }
 
                     if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
                         outputDiv.innerText = data.candidates[0].content.parts[0].text;
-                        return; // Berhasil, keluar dari fungsi
+                        return; // Berhasil
                     }
                 } catch (err) {
                     lastError = err.message;
-                    await new Promise(res => setTimeout(res, 1500));
+                    await new Promise(res => setTimeout(res, 1000));
                 }
             }
         }
 
-        // Jika semua model gagal
-        throw new Error(`Server Google AI sedang mengalami beban lalu lintas tinggi (503). Silakan coba lagi dalam beberapa saat.\nDetail: ${lastError}`);
+        throw new Error(`Gagal memproses dengan seluruh model AI.\nDetail terakhir: ${lastError}`);
     }
 </script>
 
