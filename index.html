@@ -51,7 +51,6 @@
             font-size: 15px;
         }
 
-        /* Tombol Setting di Pojok Kanan Atas */
         .settings-btn {
             position: absolute;
             top: 25px;
@@ -69,7 +68,6 @@
             background: #e2e8f0;
         }
 
-        /* Modal Popup Settings */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -263,9 +261,9 @@
     <main>
         <!-- Tab Pilihan Input -->
         <div class="tab-container">
-            <button class="tab-btn active" onclick="switchTab('text')">✍️ Ketik / Teks</button>
-            <button class="tab-btn" onclick="switchTab('file')">📁 Unggah File</button>
-            <button class="tab-btn" onclick="switchTab('url')">🌐 Link Website</button>
+            <button class="tab-btn active" onclick="switchTab('text', event)">✍️ Ketik / Teks</button>
+            <button class="tab-btn" onclick="switchTab('file', event)">📁 Unggah File</button>
+            <button class="tab-btn" onclick="switchTab('url', event)">🌐 Link Website</button>
         </div>
 
         <!-- Tab 1: Text Input -->
@@ -324,10 +322,9 @@
 <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-    let activeTab = 'text';
+    let activeTab = 'file'; // Default diatur sesuai antarmuka aktif
     let selectedFile = null;
 
-    // Muat API Key otomatis saat halaman dibuka
     window.onload = function() {
         const savedKey = localStorage.getItem('gemini_api_key');
         if (savedKey) {
@@ -354,12 +351,14 @@
         closeModal();
     }
 
-    function switchTab(tab) {
+    function switchTab(tab, evt) {
         activeTab = tab;
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
 
-        event.target.classList.add('active');
+        if (evt && evt.target) {
+            evt.target.classList.add('active');
+        }
         document.getElementById(`tab-${tab}`).classList.add('active');
     }
 
@@ -378,7 +377,7 @@
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const textContent = await page.getTextContent();
-            fullText += textContent.items.map(item => item.str).join(' ') + ' ';
+            fullText += textContent.items.map(item => item.str).join(' ') + '\n';
         }
         return fullText;
     }
@@ -437,6 +436,10 @@
                 extractedText = Array.from(doc.querySelectorAll('p')).map(p => p.innerText).join(' ');
             }
 
+            if (!extractedText || extractedText.trim().length < 20) {
+                throw new Error("Teks hasil ekstraksi file terlalu singkat atau kosong. Pastikan PDF berupa teks asli (bukan gambar/scanned PDF).");
+            }
+
             await callGeminiAI(extractedText, apiKey);
 
         } catch (error) {
@@ -447,22 +450,23 @@
     async function callGeminiAI(sourceText, apiKey) {
         const outputDiv = document.getElementById('output-content');
         
-        const promptText = `
-Kamu adalah asisten pengajar profesional. Rangkumlah materi pembelajaran berikut dengan terstruktur, jelas, dan mudah dihafal untuk ujian.
+        // Membatasi panjang teks maksimal agar tidak melebihi batas request
+        const cleanText = sourceText.substring(0, 15000);
+
+        const promptText = `Kamu adalah asisten pengajar profesional. Rangkumlah materi pembelajaran berikut dengan terstruktur, jelas, dan mudah dihafal untuk ujian.
 
 Gunakan format berikut:
-📌 **RINGKASAN UTAMA:**
+📌 RINGKASAN UTAMA:
 (Berikan 3-5 poin inti terbanyak dari materi ini)
 
-💡 **ISTILAH / KONSEP PENTING:**
+💡 ISTILAH / KONSEP PENTING:
 (Sebutkan istilah-istilah kunci beserta penjelasannya secara singkat)
 
-📝 **KESIMPULAN:**
+📝 KESIMPULAN:
 (Berikan kesimpulan akhir 2-3 kalimat)
 
 Materi yang harus dirangkum:
-${sourceText}
-        `;
+${cleanText}`;
 
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
@@ -479,11 +483,16 @@ ${sourceText}
 
             const data = await response.json();
 
-            if (data.candidates && data.candidates[0].content.parts[0].text) {
+            if (!response.ok) {
+                const errDetail = data.error ? data.error.message : 'HTTP Error ' + response.status;
+                throw new Error(`API Error (${response.status}): ${errDetail}`);
+            }
+
+            if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
                 const aiResponse = data.candidates[0].content.parts[0].text;
                 outputDiv.innerText = aiResponse;
             } else {
-                throw new Error("Respon dari AI tidak valid atau API Key salah.");
+                throw new Error("Respon dari Gemini tidak memiliki teks. Cobalah periksa dokumen Anda.");
             }
         } catch (err) {
             outputDiv.innerHTML = `<p style="color: #ef4444;">⚠️ Gagal memproses AI: ${err.message}</p>`;
