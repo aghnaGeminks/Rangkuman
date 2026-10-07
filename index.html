@@ -322,7 +322,7 @@
 <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-    let activeTab = 'file'; // Default diatur sesuai antarmuka aktif
+    let activeTab = 'text'; 
     let selectedFile = null;
 
     window.onload = function() {
@@ -450,7 +450,6 @@
     async function callGeminiAI(sourceText, apiKey) {
         const outputDiv = document.getElementById('output-content');
         
-        // Membatasi panjang teks maksimal agar tidak melebihi batas request
         const cleanText = sourceText.substring(0, 15000);
 
         const promptText = `Kamu adalah asisten pengajar profesional. Rangkumlah materi pembelajaran berikut dengan terstruktur, jelas, dan mudah dihafal untuk ujian.
@@ -468,7 +467,8 @@ Gunakan format berikut:
 Materi yang harus dirangkum:
 ${cleanText}`;
 
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        // Menggunakan endpoint model gemini-3.8-flash terbaru
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
 
         try {
             const response = await fetch(endpoint, {
