@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RangkumIn AI - Perangkum Pembelajaran Cerdas</title>
+    
+    <!-- Library pendukung ekstraksi file -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background-color: #f0f4f8;
+            color: #1e293b;
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            background: #ffffff;
+            padding: 35px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            position: relative;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            color: #0f172a;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        header p {
+            color: #64748b;
+            font-size: 15px;
+        }
+
+        /* Tombol Setting di Pojok Kanan Atas */
+        .settings-btn {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            font-size: 20px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .settings-btn:hover {
+            background: #e2e8f0;
+        }
+
+        /* Modal Popup Settings */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #ffffff;
+            width: 90%;
+            max-width: 480px;
+            padding: 25px;
+            border-radius: 14px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+            color: #0f172a;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #64748b;
+        }
+
+        .tab-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn.active {
+            background-color: #2563eb;
+            color: #ffffff;
+        }
+
+        .tab-content {
+            display: none;
+            margin-bottom: 20px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #334155;
+            font-size: 14px;
+        }
+
+        textarea, input[type="url"], input[type="password"] {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+
+        textarea {
+            height: 180px;
+            resize: vertical;
+        }
+
+        textarea:focus, input[type="url"]:focus, input[type="password"]:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+
+        .file-dropzone {
+            border: 2px dashed #cbd5e1;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px;
+            background-color: #f8fafc;
+            cursor: pointer;
+        }
+
+        .file-dropzone input[type="file"] {
+            display: none;
+        }
+
+        .file-info {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #059669;
+            font-weight: 600;
+        }
+
+        .submit-btn, .save-settings-btn {
+            width: 100%;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .submit-btn {
+            padding: 14px;
+            font-size: 16px;
+            margin-bottom: 25px;
+        }
+
+        .submit-btn:hover, .save-settings-btn:hover {
+            background-color: #1d4ed8;
+        }
+
+        .output-box {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 24px;
+        }
+
+        .output-box h2 {
+            font-size: 18px;
+            color: #0f172a;
+            margin-bottom: 14px;
+        }
+
+        #output-content {
+            font-size: 15px;
+            color: #334155;
+            white-space: pre-wrap;
+        }
+
+        .placeholder-text {
+            color: #94a3b8;
+            font-style: italic;
+        }
+
+        .loading {
+            color: #2563eb;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <button class="settings-btn" onclick="openModal()" title="Pengaturan">⚙️</button>
+
+    <header>
+        <h1>🤖 RangkumIn AI</h1>
+        <p>Rangkum materi pembelajaran dengan AI (Gemini) dari Teks, Dokumen, atau Link Web</p>
+    </header>
+
+    <main>
+        <!-- Tab Pilihan Input -->
+        <div class="tab-container">
+            <button class="tab-btn active" onclick="switchTab('text')">✍️ Ketik / Teks</button>
+            <button class="tab-btn" onclick="switchTab('file')">📁 Unggah File</button>
+            <button class="tab-btn" onclick="switchTab('url')">🌐 Link Website</button>
+        </div>
+
+        <!-- Tab 1: Text Input -->
+        <div id="tab-text" class="tab-content active">
+            <label for="text-input">Tempelkan Teks atau Catatan Materi:</label>
+            <textarea id="text-input" placeholder="Salin dan tempelkan materi pembelajaran di sini..."></textarea>
+        </div>
+
+        <!-- Tab 2: Upload File -->
+        <div id="tab-file" class="tab-content">
+            <label>Unggah Dokumen Pembelajaran (.pdf, .docx, .txt):</label>
+            <div class="file-dropzone" onclick="document.getElementById('file-input').click()">
+                <p>📄 Klik untuk memilih file materi</p>
+                <span style="font-size: 12px; color: #94a3b8;">Format: PDF, Word (DOCX), Text (TXT)</span>
+                <input type="file" id="file-input" accept=".pdf, .docx, .txt" onchange="handleFileSelect(event)">
+                <div id="file-name-display" class="file-info"></div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Link Website -->
+        <div id="tab-url" class="tab-content">
+            <label for="url-input">Tautan Website / Artikel Pembelajaran:</label>
+            <input type="url" id="url-input" placeholder="https://contoh.com/materi-pembelajaran">
+        </div>
+
+        <button class="submit-btn" onclick="processSummarize()">Rangkum dengan AI</button>
+
+        <!-- Container Hasil Rangkuman -->
+        <div class="output-box">
+            <h2>Hasil Rangkuman AI:</h2>
+            <div id="output-content">
+                <p class="placeholder-text">Hasil rangkuman cerdas akan muncul di sini.</p>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal Popup Setting API Key -->
+<div class="modal-overlay" id="settings-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>⚙️ Pengaturan API Key</h3>
+            <button class="close-btn" onclick="closeModal()">&times;</button>
+        </div>
+        <div style="margin-bottom: 20px;">
+            <label for="api-key-input">Google Gemini API Key:</label>
+            <input type="password" id="api-key-input" placeholder="AIzaSy...">
+            <span style="font-size: 12px; color: #64748b; display: block; margin-top: 6px;">
+                API key akan tersimpan dengan aman di browser Anda (LocalStorage).
+            </span>
+        </div>
+        <button class="save-settings-btn" onclick="saveApiKey()">Simpan Pengaturan</button>
+    </div>
+</div>
+
+<script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+    let activeTab = 'text';
+    let selectedFile = null;
+
+    // Muat API Key otomatis saat halaman dibuka
+    window.onload = function() {
+        const savedKey = localStorage.getItem('gemini_api_key');
+        if (savedKey) {
+            document.getElementById('api-key-input').value = savedKey;
+        }
+    };
+
+    function openModal() {
+        document.getElementById('settings-modal').classList.add('active');
+    }
+
+    function closeModal() {
+        document.getElementById('settings-modal').classList.remove('active');
+    }
+
+    function saveApiKey() {
+        const key = document.getElementById('api-key-input').value.trim();
+        if (!key) {
+            alert("Silakan masukkan API Key terlebih dahulu!");
+            return;
+        }
+        localStorage.setItem('gemini_api_key', key);
+        alert("API Key berhasil disimpan!");
+        closeModal();
+    }
+
+    function switchTab(tab) {
+        activeTab = tab;
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+        event.target.classList.add('active');
+        document.getElementById(`tab-${tab}`).classList.add('active');
+    }
+
+    function handleFileSelect(event) {
+        selectedFile = event.target.files[0];
+        if (selectedFile) {
+            document.getElementById('file-name-display').innerText = `File terpilih: ${selectedFile.name}`;
+        }
+    }
+
+    async function extractPdfText(file) {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = '';
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            fullText += textContent.items.map(item => item.str).join(' ') + ' ';
+        }
+        return fullText;
+    }
+
+    async function extractDocxText(file) {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+        return result.value;
+    }
+
+    function extractTxtText(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.readAsText(file);
+        });
+    }
+
+    async function processSummarize() {
+        const apiKey = localStorage.getItem('gemini_api_key');
+        const outputDiv = document.getElementById('output-content');
+        let extractedText = '';
+
+        if (!apiKey) {
+            alert("API Key belum diatur! Silakan klik tombol ⚙️ Setting di kanan atas untuk memasukkan API Key.");
+            openModal();
+            return;
+        }
+
+        outputDiv.innerHTML = '<p class="loading">⏳ Membaca materi dan meminta AI merangkum...</p>';
+
+        try {
+            if (activeTab === 'text') {
+                extractedText = document.getElementById('text-input').value.trim();
+                if (!extractedText) throw new Error("Masukkan teks materi terlebih dahulu!");
+
+            } else if (activeTab === 'file') {
+                if (!selectedFile) throw new Error("Pilih file dokumen terlebih dahulu!");
+
+                const ext = selectedFile.name.split('.').pop().toLowerCase();
+                if (ext === 'pdf') extractedText = await extractPdfText(selectedFile);
+                else if (ext === 'docx') extractedText = await extractDocxText(selectedFile);
+                else if (ext === 'txt') extractedText = await extractTxtText(selectedFile);
+                else throw new Error("Format file tidak didukung.");
+
+            } else if (activeTab === 'url') {
+                const url = document.getElementById('url-input').value.trim();
+                if (!url) throw new Error("Masukkan URL website!");
+
+                const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+                const data = await response.json();
+                if (!data.contents) throw new Error("Gagal mengambil materi dari URL.");
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(data.contents, 'text/html');
+                extractedText = Array.from(doc.querySelectorAll('p')).map(p => p.innerText).join(' ');
+            }
+
+            await callGeminiAI(extractedText, apiKey);
+
+        } catch (error) {
+            outputDiv.innerHTML = `<p style="color: #ef4444;">⚠️ ${error.message}</p>`;
+        }
+    }
+
+    async function callGeminiAI(sourceText, apiKey) {
+        const outputDiv = document.getElementById('output-content');
+        
+        const promptText = `
+Kamu adalah asisten pengajar profesional. Rangkumlah materi pembelajaran berikut dengan terstruktur, jelas, dan mudah dihafal untuk ujian.
+
+Gunakan format berikut:
+📌 **RINGKASAN UTAMA:**
+(Berikan 3-5 poin inti terbanyak dari materi ini)
+
+💡 **ISTILAH / KONSEP PENTING:**
+(Sebutkan istilah-istilah kunci beserta penjelasannya secara singkat)
+
+📝 **KESIMPULAN:**
+(Berikan kesimpulan akhir 2-3 kalimat)
+
+Materi yang harus dirangkum:
+${sourceText}
+        `;
+
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{ text: promptText }]
+                    }]
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.candidates && data.candidates[0].content.parts[0].text) {
+                const aiResponse = data.candidates[0].content.parts[0].text;
+                outputDiv.innerText = aiResponse;
+            } else {
+                throw new Error("Respon dari AI tidak valid atau API Key salah.");
+            }
+        } catch (err) {
+            outputDiv.innerHTML = `<p style="color: #ef4444;">⚠️ Gagal memproses AI: ${err.message}</p>`;
+        }
+    }
+</script>
+
+</body>
+</html>
